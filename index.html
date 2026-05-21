@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tableau de bord — Tournoi Badminton</title>
+<style>
+  :root {
+    --bg: #0f172a; --card: #1e293b; --border: #334155;
+    --text: #f1f5f9; --muted: #94a3b8;
+    --green: #22c55e; --yellow: #f59e0b; --blue: #3b82f6;
+    --red: #ef4444; --purple: #a855f7;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; min-height: 100vh; }
+  header { background: var(--card); border-bottom: 1px solid var(--border); padding: 12px 16px; display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 10; }
+  header h1 { font-size: 1.1rem; font-weight: 700; }
+  .badge { font-size: 0.7rem; padding: 2px 8px; border-radius: 99px; font-weight: 600; }
+  .badge-live { background: var(--red); color: #fff; animation: pulse 1.5s infinite; }
+  .badge-ok { background: var(--green); color: #fff; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+  .stats { display: flex; gap: 16px; padding: 12px 16px; font-size: 0.85rem; }
+  .stat { color: var(--muted); } .stat strong { color: var(--text); }
+  .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); padding: 0 16px; overflow-x: auto; }
+  .tab { padding: 10px 16px; cursor: pointer; font-size: 0.85rem; font-weight: 600; color: var(--muted); border-bottom: 2px solid transparent; white-space: nowrap; }
+  .tab.active { color: var(--blue); border-bottom-color: var(--blue); }
+  .panel { display: none; padding: 16px; } .panel.active { display: block; }
+  .courts { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+  .court { background: var(--card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .court-header { padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; font-weight: 700; border-bottom: 1px solid var(--border); }
+  .status-occupied { color: var(--yellow); } .status-free { color: var(--green); } .status-idle { color: var(--muted); }
+  .match-card { padding: 12px 14px; border-bottom: 1px solid var(--border); }
+  .match-card:last-child { border-bottom: none; }
+  .match-phase { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; }
+  .match-teams { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; }
+  .match-team { flex: 1; font-weight: 600; }
+  .match-team.winner { color: var(--green); }
+  .match-score { background: var(--bg); border-radius: 6px; padding: 2px 10px; font-size: 0.9rem; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .match-label { font-size: 0.72rem; color: var(--muted); margin-top: 4px; }
+  .tag-inprogress { background: rgba(245,158,11,.15); color: var(--yellow); border: 1px solid rgba(245,158,11,.3); border-radius: 4px; padding: 1px 6px; font-size: 0.7rem; }
+  .tag-next { background: rgba(59,130,246,.1); color: var(--blue); border: 1px solid rgba(59,130,246,.3); border-radius: 4px; padding: 1px 6px; font-size: 0.7rem; }
+  .pools { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+  .pool { background: var(--card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .pool-title { padding: 10px 14px; font-weight: 700; font-size: 0.85rem; border-bottom: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  th { padding: 6px 10px; color: var(--muted); font-weight: 600; text-align: left; border-bottom: 1px solid var(--border); }
+  td { padding: 7px 10px; border-bottom: 1px solid rgba(51,65,85,.5); }
+  tr:last-child td { border-bottom: none; }
+  .q-badge { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--green); margin-right: 4px; vertical-align: middle; }
+  .bracket-list { display: flex; flex-direction: column; gap: 8px; }
+  .bracket-match { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+  .loading { text-align: center; padding: 60px; color: var(--muted); }
+  .error-banner { background: rgba(239,68,68,.15); border: 1px solid rgba(239,68,68,.3); color: var(--red); padding: 10px 16px; font-size: 0.85rem; }
+  .updated { font-size: 0.72rem; color: var(--muted); margin-left: auto; }
+</style>
+</head>
+<body>
+
+<header>
+  <span>🏸</span>
+  <h1 id="title">Chargement…</h1>
+  <span id="conn-badge" class="badge badge-ok">●</span>
+  <span class="updated" id="updated-at"></span>
+</header>
+
+<div id="error-banner" class="error-banner" style="display:none"></div>
+
+<div class="stats">
+  <div class="stat">En cours : <strong id="s-inprogress">—</strong></div>
+  <div class="stat">Terminés : <strong id="s-completed">—</strong></div>
+  <div class="stat">Restants : <strong id="s-remaining">—</strong></div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="showTab('terrains')">Terrains</div>
+  <div class="tab" onclick="showTab('pools')">Poules</div>
+  <div class="tab" onclick="showTab('bracket')">Bracket</div>
+  <div class="tab" onclick="showTab('consolation')">Consolante</div>
+</div>
+
+<div id="tab-terrains" class="panel active"><div class="loading">Connexion…</div></div>
+<div id="tab-pools" class="panel"><div class="loading">Connexion…</div></div>
+<div id="tab-bracket" class="panel"><div class="loading">Connexion…</div></div>
+<div id="tab-consolation" class="panel"><div class="loading">Connexion…</div></div>
+
+<script>
+// ── CONFIG ────────────────────────────────────────────────────────────────────
+// Remplace par l'URL de ton serveur Axum (ex: https://fouduvolant.eigenplay.com)
+const API_BASE = 'http://localhost:3000';
+// ─────────────────────────────────────────────────────────────────────────────
+
+function showTab(name) {
+  document.querySelectorAll('.tab').forEach((t,i) => {
+    const names = ['terrains','pools','bracket','consolation'];
+    t.classList.toggle('active', names[i] === name);
+  });
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function renderMatch(m, tag) {
+  const score = m.score ? `<span class="match-score">${esc(m.score)}</span>` : '<span class="match-score">– – –</span>';
+  const t1cls = m.winner === m.team1 ? ' winner' : '';
+  const t2cls = m.winner === m.team2 ? ' winner' : '';
+  const label = tag ? `<span class="${tag}">${tag === 'tag-inprogress' ? '▶ EN COURS' : '⏭ SUIVANT'}</span>` : '';
+  return `<div class="match-card">
+    <div class="match-phase">${esc(m.phase)} ${label}</div>
+    <div class="match-teams">
+      <span class="match-team${t1cls}">${esc(m.team1)}</span>
+      ${score}
+      <span class="match-team${t2cls}">${esc(m.team2)}</span>
+    </div>
+  </div>`;
+}
+
+function renderTerrains(courts) {
+  if (!courts || courts.length === 0) return '<div class="loading">Aucun terrain</div>';
+  return `<div class="courts">${courts.map(c => {
+    const statusCls = c.status === 'occupied' ? 'status-occupied' : c.status === 'free' ? 'status-free' : 'status-idle';
+    const statusLabel = c.status === 'occupied' ? '▶ EN COURS' : c.status === 'free' ? '○ LIBRE' : '— INACTIF';
+    let content = '';
+    c.completed_matches.forEach(m => { content += renderMatch(m, null); });
+    if (c.current_match) content += renderMatch(c.current_match, 'tag-inprogress');
+    if (c.next_match) content += renderMatch(c.next_match, 'tag-next');
+    if (!content) content = '<div class="match-card"><span style="color:var(--muted);font-size:.85rem">Aucun match</span></div>';
+    return `<div class="court">
+      <div class="court-header">
+        <span>Terrain ${c.number}</span>
+        <span class="${statusCls}">${statusLabel}</span>
+      </div>${content}
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function renderPools(pools) {
+  if (!pools || pools.length === 0) return '<div class="loading">Aucune poule</div>';
+  return `<div class="pools">${pools.map(p => `
+    <div class="pool">
+      <div class="pool-title">${esc(p.name)}</div>
+      <table>
+        <thead><tr><th>#</th><th>Équipe</th><th>V</th><th>D</th><th>Diff</th></tr></thead>
+        <tbody>${p.standings.map(s => `
+          <tr>
+            <td>${s.rank}</td>
+            <td>${s.qualified ? '<span class="q-badge"></span>' : ''}${esc(s.team)}</td>
+            <td>${s.wins}</td><td>${s.losses}</td><td>${s.diff > 0 ? '+' : ''}${s.diff}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`).join('')}</div>`;
+}
+
+function renderBracketList(matches, empty) {
+  if (!matches || matches.length === 0) return `<div class="loading">${empty || 'Aucun match'}</div>`;
+  return `<div class="bracket-list">${matches.map(m => renderMatch(m, null)).join('')}</div>`;
+}
+
+function applyData(data) {
+  document.getElementById('title').textContent = data.tournament_name || 'Tournoi';
+  document.getElementById('s-inprogress').textContent = data.stats?.in_progress ?? '—';
+  document.getElementById('s-completed').textContent = data.stats?.completed ?? '—';
+  document.getElementById('s-remaining').textContent = data.stats?.remaining ?? '—';
+  const d = new Date(data.updated_at);
+  document.getElementById('updated-at').textContent = `màj ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}:${d.getSeconds().toString().padStart(2,'0')}`;
+  document.getElementById('tab-terrains').innerHTML = renderTerrains(data.courts);
+  document.getElementById('tab-pools').innerHTML = renderPools(data.pools);
+  document.getElementById('tab-bracket').innerHTML = renderBracketList(data.bracket, 'Pas encore de phase finale');
+  document.getElementById('tab-consolation').innerHTML = renderBracketList(data.consolation, 'Pas encore de consolante');
+}
+
+function setConnected(ok) {
+  const b = document.getElementById('conn-badge');
+  b.textContent = ok ? '● Connecté' : '● Déconnecté';
+  b.className = 'badge ' + (ok ? 'badge-ok' : 'badge-live');
+}
+
+function showError(msg) {
+  const el = document.getElementById('error-banner');
+  el.textContent = msg; el.style.display = msg ? '' : 'none';
+}
+
+// ── Connexion SSE ─────────────────────────────────────────────────────────────
+function connect() {
+  const es = new EventSource(API_BASE + '/api/board/events');
+  es.addEventListener('board', e => {
+    try {
+      applyData(JSON.parse(e.data));
+      setConnected(true);
+      showError('');
+    } catch(err) { console.error(err); }
+  });
+  es.onerror = () => {
+    setConnected(false);
+    showError('Connexion perdue — reconnexion automatique…');
+    es.close();
+    setTimeout(connect, 3000);
+  };
+}
+
+// Charge initiale puis SSE
+fetch(API_BASE + '/api/board')
+  .then(r => r.json())
+  .then(data => { applyData(data); setConnected(true); connect(); })
+  .catch(() => { setConnected(false); showError('Impossible de contacter le serveur'); connect(); });
+</script>
+</body>
+</html>
