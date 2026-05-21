@@ -154,29 +154,83 @@ function renderPools(pools) {
     </div>`).join('')}</div>`;
 }
 
-function renderRounds(rounds, emptyMsg) {
+function renderBracketTree(rounds, emptyMsg) {
   if (!rounds || rounds.length === 0) return `<div class="loading">${emptyMsg || 'Aucun match'}</div>`;
-  return rounds.map(r => {
-    const opacity = r.is_future ? 'opacity:.45' : '';
-    const header = `<div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding:8px 4px 4px;${opacity}">${esc(r.name)}</div>`;
-    const cards = r.matches.map(m => {
+
+  const CARD_H = 88;
+  const TEAM_H = 40;
+  const GAP_H = 16;
+  const ROUND_W = 210;
+  const CONN_W = 50;
+  const TITLE_H = 28;
+
+  const UNIT = CARD_H + GAP_H;
+  const centers = [];
+  centers.push(rounds[0].matches.map((_, i) => i * UNIT + CARD_H / 2));
+  for (let r = 1; r < rounds.length; r++) {
+    const prev = centers[r - 1];
+    centers.push(rounds[r].matches.map((_, i) => {
+      const a = prev[2 * i] ?? prev[prev.length - 1];
+      const b = prev[2 * i + 1] ?? a;
+      return (a + b) / 2;
+    }));
+  }
+
+  const totalH = Math.max(...centers.map(cs => cs.length ? cs[cs.length - 1] + CARD_H / 2 : 0));
+  const totalW = rounds.length * ROUND_W + (rounds.length - 1) * CONN_W;
+
+  let svgLines = '';
+  for (let r = 0; r < rounds.length - 1; r++) {
+    const x1 = r * (ROUND_W + CONN_W) + ROUND_W;
+    const x2 = (r + 1) * (ROUND_W + CONN_W);
+    const xMid = x1 + CONN_W / 2;
+    for (let i = 0; i < rounds[r].matches.length; i += 2) {
+      const yTop = TITLE_H + centers[r][i];
+      const yBot = TITLE_H + (centers[r][i + 1] ?? centers[r][i]);
+      const nextIdx = Math.floor(i / 2);
+      const yNext = TITLE_H + (centers[r + 1][nextIdx] ?? (yTop + yBot) / 2 - TITLE_H);
+      svgLines += `<line x1="${x1}" y1="${yTop}" x2="${xMid}" y2="${yTop}" stroke="#334155" stroke-width="1.5"/>`;
+      if (yBot !== yTop) {
+        svgLines += `<line x1="${xMid}" y1="${yTop}" x2="${xMid}" y2="${yBot}" stroke="#334155" stroke-width="1.5"/>`;
+        svgLines += `<line x1="${x1}" y1="${yBot}" x2="${xMid}" y2="${yBot}" stroke="#334155" stroke-width="1.5"/>`;
+      }
+      svgLines += `<line x1="${xMid}" y1="${yNext}" x2="${x2}" y2="${yNext}" stroke="#334155" stroke-width="1.5"/>`;
+    }
+  }
+
+  let cards = '';
+  rounds.forEach((round, r) => {
+    const xLeft = r * (ROUND_W + CONN_W);
+    const dim = round.is_future ? '0.5' : '1';
+    cards += `<div style="position:absolute;left:${xLeft}px;top:0;width:${ROUND_W}px">
+      <div style="text-align:center;font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;height:${TITLE_H}px;display:flex;align-items:center;justify-content:center;opacity:${dim}">${esc(round.name)}</div>`;
+    round.matches.forEach((m, i) => {
+      const top = TITLE_H + centers[r][i] - CARD_H / 2;
       const isPending = m.status === 'pending';
-      const score = isPending ? '<span class="match-score" style="opacity:.4">? – ?</span>' :
-        (m.score ? `<span class="match-score">${esc(m.score)}</span>` : '<span class="match-score">– – –</span>');
-      const t1cls = m.winner === m.team1 ? ' winner' : '';
-      const t2cls = m.winner === m.team2 ? ' winner' : '';
-      const teamStyle = isPending ? ' style="opacity:.4"' : '';
-      return `<div class="bracket-match"${isPending ? ' style="opacity:.55"' : ''}>
-        <div class="match-phase">${esc(m.phase)}</div>
-        <div class="match-teams">
-          <span class="match-team${t1cls}"${teamStyle}>${esc(m.team1)}</span>
-          ${score}
-          <span class="match-team${t2cls}"${teamStyle}>${esc(m.team2)}</span>
+      const op = isPending ? '0.5' : '1';
+      const s = m.score ? m.score.split('-') : ['', ''];
+      const w1 = m.winner && m.winner === m.team1 ? 'color:var(--green);' : '';
+      const w2 = m.winner && m.winner === m.team2 ? 'color:var(--green);' : '';
+      cards += `<div style="position:absolute;top:${top}px;left:0;right:0;background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:hidden;opacity:${op}">
+        <div style="display:flex;align-items:center;padding:0 10px;height:${TEAM_H}px;border-bottom:1px solid var(--border);${w1}">
+          <span style="flex:1;font-size:.84rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.team1)}</span>
+          <span style="font-weight:700;font-size:.9rem;min-width:18px;text-align:right">${esc(s[0])}</span>
+        </div>
+        <div style="display:flex;align-items:center;padding:0 10px;height:${TEAM_H}px;${w2}">
+          <span style="flex:1;font-size:.84rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.team2)}</span>
+          <span style="font-weight:700;font-size:.9rem;min-width:18px;text-align:right">${esc(s[1])}</span>
         </div>
       </div>`;
-    }).join('');
-    return header + `<div class="bracket-list" style="${opacity}">${cards}</div>`;
-  }).join('');
+    });
+    cards += `</div>`;
+  });
+
+  return `<div style="overflow-x:auto;overflow-y:visible;padding-bottom:8px">
+    <div style="position:relative;width:${totalW}px;height:${totalH + TITLE_H}px">
+      <svg style="position:absolute;top:0;left:0;width:100%;height:100%;overflow:visible" xmlns="http://www.w3.org/2000/svg">${svgLines}</svg>
+      ${cards}
+    </div>
+  </div>`;
 }
 
 function applyData(data) {
@@ -188,8 +242,8 @@ function applyData(data) {
   document.getElementById('updated-at').textContent = `màj ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}:${d.getSeconds().toString().padStart(2,'0')}`;
   document.getElementById('tab-terrains').innerHTML = renderTerrains(data.courts);
   document.getElementById('tab-pools').innerHTML = renderPools(data.pools);
-  document.getElementById('tab-bracket').innerHTML = renderRounds(data.bracket_rounds, 'Pas encore de phase finale');
-  document.getElementById('tab-consolation').innerHTML = renderRounds(data.consolation_rounds, 'Pas encore de consolante');
+  document.getElementById('tab-bracket').innerHTML = renderBracketTree(data.bracket_rounds, 'Pas encore de phase finale');
+  document.getElementById('tab-consolation').innerHTML = renderBracketTree(data.consolation_rounds, 'Pas encore de consolante');
 }
 
 function setConnected(ok) {
