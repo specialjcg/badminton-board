@@ -311,7 +311,7 @@ function applyData(data) {
   document.getElementById('updated-at').textContent = `màj ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}:${d.getSeconds().toString().padStart(2,'0')}`;
   document.getElementById('tab-terrains').innerHTML = renderTerrains(data.courts);
   document.getElementById('tab-pools').innerHTML = renderPools(data.pools);
-  document.getElementById('tab-bracket').innerHTML = renderBracketTree(data.bracket_rounds, 'Pas encore de phase finale');
+  document.getElementById('tab-bracket').innerHTML = renderConsolation(data.bracket_rounds, 'Pas encore de phase finale');
   document.getElementById('tab-consolation').innerHTML = renderConsolation(data.consolation_rounds, 'Pas encore de consolante');
 }
 
