@@ -154,6 +154,31 @@ function renderPools(pools) {
     </div>`).join('')}</div>`;
 }
 
+function renderRounds(rounds, emptyMsg) {
+  if (!rounds || rounds.length === 0) return `<div class="loading">${emptyMsg || 'Aucun match'}</div>`;
+  return rounds.map(r => {
+    const dim = r.is_future ? 'opacity:.5' : '';
+    const header = `<div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding:10px 4px 4px;${dim}">${esc(r.name)}</div>`;
+    const cards = r.matches.map(m => {
+      const isPending = m.status === 'pending';
+      const s = m.score ? m.score.split('-') : ['',''];
+      const w1 = m.winner === m.team1 ? 'color:var(--green)' : '';
+      const w2 = m.winner === m.team2 ? 'color:var(--green)' : '';
+      return `<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:8px;${isPending?'opacity:.5':''}">
+        <div style="display:flex;align-items:center;padding:0 10px;height:36px;border-bottom:1px solid var(--border);${w1}">
+          <span style="flex:1;font-size:.84rem;font-weight:600">${esc(m.team1)}</span>
+          <span style="font-weight:700">${esc(s[0])}</span>
+        </div>
+        <div style="display:flex;align-items:center;padding:0 10px;height:36px;${w2}">
+          <span style="flex:1;font-size:.84rem;font-weight:600">${esc(m.team2)}</span>
+          <span style="font-weight:700">${esc(s[1])}</span>
+        </div>
+      </div>`;
+    }).join('');
+    return header + cards;
+  }).join('');
+}
+
 function renderBracketTree(rounds, emptyMsg) {
   if (!rounds || rounds.length === 0) return `<div class="loading">${emptyMsg || 'Aucun match'}</div>`;
 
@@ -243,7 +268,7 @@ function applyData(data) {
   document.getElementById('tab-terrains').innerHTML = renderTerrains(data.courts);
   document.getElementById('tab-pools').innerHTML = renderPools(data.pools);
   document.getElementById('tab-bracket').innerHTML = renderBracketTree(data.bracket_rounds, 'Pas encore de phase finale');
-  document.getElementById('tab-consolation').innerHTML = renderBracketTree(data.consolation_rounds, 'Pas encore de consolante');
+  document.getElementById('tab-consolation').innerHTML = renderRounds(data.consolation_rounds, 'Pas encore de consolante');
 }
 
 function setConnected(ok) {
