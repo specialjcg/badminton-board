@@ -154,29 +154,73 @@ function renderPools(pools) {
     </div>`).join('')}</div>`;
 }
 
+function renderMatchCard(m) {
+  const isPending = m.status === 'pending';
+  const s = m.score ? m.score.split('-') : ['',''];
+  const w1 = m.winner === m.team1 ? 'color:var(--green)' : '';
+  const w2 = m.winner === m.team2 ? 'color:var(--green)' : '';
+  return `<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:8px;${isPending?'opacity:.5':''}">
+    <div style="display:flex;align-items:center;padding:0 10px;height:36px;border-bottom:1px solid var(--border);${w1}">
+      <span style="flex:1;font-size:.84rem;font-weight:600">${esc(m.team1)}</span>
+      <span style="font-weight:700">${esc(s[0])}</span>
+    </div>
+    <div style="display:flex;align-items:center;padding:0 10px;height:36px;${w2}">
+      <span style="flex:1;font-size:.84rem;font-weight:600">${esc(m.team2)}</span>
+      <span style="font-weight:700">${esc(s[1])}</span>
+    </div>
+  </div>`;
+}
+
 function renderRounds(rounds, emptyMsg) {
   if (!rounds || rounds.length === 0) return `<div class="loading">${emptyMsg || 'Aucun match'}</div>`;
   return rounds.map(r => {
     const dim = r.is_future ? 'opacity:.5' : '';
     const header = `<div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding:10px 4px 4px;${dim}">${esc(r.name)}</div>`;
-    const cards = r.matches.map(m => {
-      const isPending = m.status === 'pending';
-      const s = m.score ? m.score.split('-') : ['',''];
-      const w1 = m.winner === m.team1 ? 'color:var(--green)' : '';
-      const w2 = m.winner === m.team2 ? 'color:var(--green)' : '';
-      return `<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:8px;${isPending?'opacity:.5':''}">
-        <div style="display:flex;align-items:center;padding:0 10px;height:36px;border-bottom:1px solid var(--border);${w1}">
-          <span style="flex:1;font-size:.84rem;font-weight:600">${esc(m.team1)}</span>
-          <span style="font-weight:700">${esc(s[0])}</span>
-        </div>
-        <div style="display:flex;align-items:center;padding:0 10px;height:36px;${w2}">
-          <span style="flex:1;font-size:.84rem;font-weight:600">${esc(m.team2)}</span>
-          <span style="font-weight:700">${esc(s[1])}</span>
-        </div>
-      </div>`;
-    }).join('');
-    return header + cards;
+    return header + r.matches.map(renderMatchCard).join('');
   }).join('');
+}
+
+function renderConsolation(rounds, emptyMsg) {
+  if (!rounds || rounds.length === 0) return `<div class="loading">${emptyMsg || 'Aucun match'}</div>`;
+
+  let pretourEnd = 0;
+  while (pretourEnd < rounds.length - 1 &&
+         rounds[pretourEnd + 1].matches.length > rounds[pretourEnd].matches.length) {
+    pretourEnd++;
+  }
+  const pretourRounds = rounds.slice(0, pretourEnd);
+  const rest = rounds.slice(pretourEnd);
+
+  const splitIdx = rest.findIndex(r => r.matches.length === 1);
+  const bracketRounds = splitIdx === -1 ? rest : rest.slice(0, splitIdx);
+  const finalRounds  = splitIdx === -1 ? []  : rest.slice(splitIdx);
+
+  let html = '';
+
+  if (pretourRounds.length > 0) {
+    html += renderRounds(pretourRounds, '');
+    html += `<hr style="border:none;border-top:1px solid var(--border);margin:14px 0">`;
+  }
+
+  if (bracketRounds.length > 0) {
+    html += renderBracketTree(bracketRounds, '');
+  }
+
+  if (finalRounds.length > 0) {
+    html += `<div style="display:flex;flex-wrap:wrap;gap:16px;margin-top:16px">`;
+    finalRounds.forEach(r => {
+      const dim = r.is_future ? 'opacity:.5' : '';
+      const m = r.matches[0];
+      if (!m) return;
+      html += `<div style="flex:1;min-width:180px;max-width:260px;${dim}">
+        <div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">${esc(r.name)}</div>
+        ${renderMatchCard(m)}
+      </div>`;
+    });
+    html += `</div>`;
+  }
+
+  return html;
 }
 
 function renderBracketTree(rounds, emptyMsg) {
@@ -268,7 +312,7 @@ function applyData(data) {
   document.getElementById('tab-terrains').innerHTML = renderTerrains(data.courts);
   document.getElementById('tab-pools').innerHTML = renderPools(data.pools);
   document.getElementById('tab-bracket').innerHTML = renderBracketTree(data.bracket_rounds, 'Pas encore de phase finale');
-  document.getElementById('tab-consolation').innerHTML = renderRounds(data.consolation_rounds, 'Pas encore de consolante');
+  document.getElementById('tab-consolation').innerHTML = renderConsolation(data.consolation_rounds, 'Pas encore de consolante');
 }
 
 function setConnected(ok) {
