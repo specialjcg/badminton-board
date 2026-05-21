@@ -154,9 +154,29 @@ function renderPools(pools) {
     </div>`).join('')}</div>`;
 }
 
-function renderBracketList(matches, empty) {
-  if (!matches || matches.length === 0) return `<div class="loading">${empty || 'Aucun match'}</div>`;
-  return `<div class="bracket-list">${matches.map(m => renderMatch(m, null)).join('')}</div>`;
+function renderRounds(rounds, emptyMsg) {
+  if (!rounds || rounds.length === 0) return `<div class="loading">${emptyMsg || 'Aucun match'}</div>`;
+  return rounds.map(r => {
+    const opacity = r.is_future ? 'opacity:.45' : '';
+    const header = `<div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding:8px 4px 4px;${opacity}">${esc(r.name)}</div>`;
+    const cards = r.matches.map(m => {
+      const isPending = m.status === 'pending';
+      const score = isPending ? '<span class="match-score" style="opacity:.4">? – ?</span>' :
+        (m.score ? `<span class="match-score">${esc(m.score)}</span>` : '<span class="match-score">– – –</span>');
+      const t1cls = m.winner === m.team1 ? ' winner' : '';
+      const t2cls = m.winner === m.team2 ? ' winner' : '';
+      const teamStyle = isPending ? ' style="opacity:.4"' : '';
+      return `<div class="bracket-match"${isPending ? ' style="opacity:.55"' : ''}>
+        <div class="match-phase">${esc(m.phase)}</div>
+        <div class="match-teams">
+          <span class="match-team${t1cls}"${teamStyle}>${esc(m.team1)}</span>
+          ${score}
+          <span class="match-team${t2cls}"${teamStyle}>${esc(m.team2)}</span>
+        </div>
+      </div>`;
+    }).join('');
+    return header + `<div class="bracket-list" style="${opacity}">${cards}</div>`;
+  }).join('');
 }
 
 function applyData(data) {
@@ -168,8 +188,8 @@ function applyData(data) {
   document.getElementById('updated-at').textContent = `màj ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}:${d.getSeconds().toString().padStart(2,'0')}`;
   document.getElementById('tab-terrains').innerHTML = renderTerrains(data.courts);
   document.getElementById('tab-pools').innerHTML = renderPools(data.pools);
-  document.getElementById('tab-bracket').innerHTML = renderBracketList(data.bracket, 'Pas encore de phase finale');
-  document.getElementById('tab-consolation').innerHTML = renderBracketList(data.consolation, 'Pas encore de consolante');
+  document.getElementById('tab-bracket').innerHTML = renderRounds(data.bracket_rounds, 'Pas encore de phase finale');
+  document.getElementById('tab-consolation').innerHTML = renderRounds(data.consolation_rounds, 'Pas encore de consolante');
 }
 
 function setConnected(ok) {
