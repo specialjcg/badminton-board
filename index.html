@@ -183,6 +183,7 @@ function renderRounds(rounds, emptyMsg) {
 function renderConsolation(rounds, emptyMsg) {
   if (!rounds || rounds.length === 0) return `<div class="loading">${emptyMsg || 'Aucun match'}</div>`;
 
+  // Pré-tours = rounds where next round has MORE matches (reduces field to bracket size)
   let pretourEnd = 0;
   while (pretourEnd < rounds.length - 1 &&
          rounds[pretourEnd + 1].matches.length > rounds[pretourEnd].matches.length) {
@@ -191,9 +192,10 @@ function renderConsolation(rounds, emptyMsg) {
   const pretourRounds = rounds.slice(0, pretourEnd);
   const rest = rounds.slice(pretourEnd);
 
-  const splitIdx = rest.findIndex(r => r.matches.length === 1);
-  const bracketRounds = splitIdx === -1 ? rest : rest.slice(0, splitIdx);
-  const finalRounds  = splitIdx === -1 ? []  : rest.slice(splitIdx);
+  // Petite finale = 1-match round(s) that are NOT the last round (parallel to demis output)
+  // Finale stays in bracketRounds (rightmost column of tree)
+  const finalRounds = rest.filter((r, i) => r.matches.length === 1 && i < rest.length - 1);
+  const bracketRounds = rest.filter((r, i) => !(r.matches.length === 1 && i < rest.length - 1));
 
   let html = '';
 
@@ -226,13 +228,14 @@ function renderConsolation(rounds, emptyMsg) {
 function renderBracketTree(rounds, emptyMsg) {
   if (!rounds || rounds.length === 0) return `<div class="loading">${emptyMsg || 'Aucun match'}</div>`;
 
-  const CARD_H = 88;
-  const TEAM_H = 40;
-  const GAP_H = 16;
-  const ROUND_W = 210;
-  const CONN_W = 50;
-  const TITLE_H = 28;
+  const CARD_H = 88;   // height of a match card (2 team rows)
+  const TEAM_H = 40;   // height of one team row
+  const GAP_H = 16;    // gap between matches in same round
+  const ROUND_W = 210; // width of a match card
+  const CONN_W = 50;   // width of connector arm between rounds
+  const TITLE_H = 28;  // round title height
 
+  // Compute vertical center of each match in each round
   const UNIT = CARD_H + GAP_H;
   const centers = [];
   centers.push(rounds[0].matches.map((_, i) => i * UNIT + CARD_H / 2));
@@ -248,6 +251,7 @@ function renderBracketTree(rounds, emptyMsg) {
   const totalH = Math.max(...centers.map(cs => cs.length ? cs[cs.length - 1] + CARD_H / 2 : 0));
   const totalW = rounds.length * ROUND_W + (rounds.length - 1) * CONN_W;
 
+  // SVG connector lines
   let svgLines = '';
   for (let r = 0; r < rounds.length - 1; r++) {
     const x1 = r * (ROUND_W + CONN_W) + ROUND_W;
@@ -267,6 +271,7 @@ function renderBracketTree(rounds, emptyMsg) {
     }
   }
 
+  // Match cards (absolute positioned)
   let cards = '';
   rounds.forEach((round, r) => {
     const xLeft = r * (ROUND_W + CONN_W);
